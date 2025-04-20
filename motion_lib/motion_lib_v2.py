@@ -3,15 +3,15 @@ import os
 import yaml
 
 from isaacgym.torch_utils import *
-from legged_gym.utils import torch_utils
+# from legged_gym.utils import torch_utils
 import torch
 import dill as pickle
 import pdb
 import sys
 from tqdm import tqdm
-from legged_gym import LEGGED_GYM_ROOT_DIR, MOTION_LIB_DIR
+# from legged_gym import LEGGED_GYM_ROOT_DIR, MOTION_LIB_DIR
 
-class MotionLibRetarget():
+class MotionLibV2():
     def __init__(
             self,
             motion_pkl_path=None,
@@ -34,14 +34,14 @@ class MotionLibRetarget():
                     motion_cfg_path=motion_cfg_path,
                     motion_folder_path=motion_folder_path
                 )
-                self.save_motion_to_pkl(motion_pkl_path)
+                # self.save_motion_to_pkl(motion_pkl_path)
                 # exited afterwards
         else:
             print('Regenerating motion pkl...')
             print('Setting motion device: cpu')
             self.device = 'cpu'
             self.load_motion_from_npy(motion_folder_path)
-            self.save_motion_to_pkl(motion_pkl_path)
+            # self.save_motion_to_pkl(motion_pkl_path)
             # exited afterwards
 
         '''
@@ -89,7 +89,6 @@ class MotionLibRetarget():
         lengths_shifted = lengths.roll(1)
         lengths_shifted[0] = 0
         self.length_starts = lengths_shifted.cumsum(dim=0)
-        # print(self.motion_fps); quit()
         self.motion_ids = torch.arange(self.num_motions(), dtype=torch.long, device=self.device)
         return
 
@@ -186,8 +185,18 @@ class MotionLibRetarget():
         return sum(self.motion_lengths)
 
     ### Added for expressive-humanoid ###
+    def get_motion_num_frames(self, motion_ids):
+        return self.motion_num_frames[motion_ids]
     
+    def get_motion_fps(self, motion_ids):
+        return self.motion_fps[motion_ids]
     
+    def get_motion_files(self, motion_ids):
+        return self.motion_files[motion_ids]
+    
+    def get_motion_difficulty(self, motion_ids):
+        return self.motions_difficulty[motion_ids]
+
     
     ######## File Operations ########
     def load_motion_from_npy(
@@ -200,7 +209,10 @@ class MotionLibRetarget():
         
         motions_available =[]
         motions_keys = []
+        self.motions_difficulty = []
         for motion_entry in motions_list.keys():
+            print(f"{motion_entry} => {motions_list[motion_entry]}")
+            self.motions_difficulty.append(motions_list[motion_entry]["difficulty"])
             if motion_entry == "root":
                 continue
             target_motion_file = os.path.join(motion_folder_path, motion_entry + ".npy")
@@ -217,6 +229,7 @@ class MotionLibRetarget():
         self.motion_dt = []
         self.motion_lengths = []
         self.motion_num_frames = []
+        self.motion_files = []
         self.motions = []
 
         for index in tqdm(range(num_motions)):
@@ -225,22 +238,25 @@ class MotionLibRetarget():
             print("Loading {:d}/{:d} motion files: {:s}".format(index + 1, num_motions, motion_entry))
             motion_data = np.load(motion_file, allow_pickle=True).item()
             
+            self.motion_files.append(motion_file)
             self.motion_fps.append(motion_data['fps'])
             dt = 1.0 / motion_data['fps']
             self.motion_dt.append(dt)
-            # NOTE: sometimes the length is not accurate directly from the dataset,
-            #       which often happens that num_frames = length_from_data * fps + 0.5,
-            #       so the length is calculated from the num_frames and fps 
             length = 1.0 / motion_data['fps'] * (motion_data['num_frames'] - 1)
             self.motion_lengths.append(length)
             self.motion_num_frames.append(motion_data['num_frames'])
+            
+            # Convert numpy arrays to torch tensors
+            motion_data['root_pos'] = torch.from_numpy(motion_data['root_pos']).to(self.device).to(torch.float32)
+            motion_data['root_rot'] = torch.from_numpy(motion_data['root_rot']).to(self.device).to(torch.float32)
+            motion_data['dof_pos'] = torch.from_numpy(motion_data['dof_pos']).to(self.device).to(torch.float32)
+            motion_data['root_vel'] = torch.from_numpy(motion_data['root_vel']).to(self.device).to(torch.float32)
+            motion_data['root_ang_vel'] = torch.from_numpy(motion_data['root_ang_vel']).to(self.device).to(torch.float32)
+            motion_data['dof_vel'] = torch.from_numpy(motion_data['dof_vel']).to(self.device).to(torch.float32)
+            motion_data['keypoint_trans'] = torch.from_numpy(motion_data['keypoint_trans']).to(self.device).to(torch.float32)
+            
             self.motions.append(motion_data)
-            # NOTE: The reason why not converting the other data to torch:
-            # 'root_pos', 'root_rot', 'dof_pos', 'root_vel', 'root_ang_vel', 'dof_vel', 'keypoint_trans'
-            # each of them is a np.array of data, so the list is a list of np.array,
-            # the transferring to torch means turning the list to a list of torch.tensor,
-            # so this work should be done after these data is reloaded from the pkl file
-        
+            
         self.motion_fps = torch.from_numpy(np.array(self.motion_fps)).to(self.device).to(torch.float32)
         self.motion_dt = torch.from_numpy(np.array(self.motion_dt)).to(self.device).to(torch.float32)
         self.motion_lengths = torch.from_numpy(np.array(self.motion_lengths)).to(self.device).to(torch.float32)

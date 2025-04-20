@@ -142,3 +142,5 @@ dmypy.json
 
 .vscode
 .DS_Store
+
+retarget/retarget_data.zip
