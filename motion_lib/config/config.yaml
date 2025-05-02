@@ -1,5 +1,5 @@
 motions:
-  'Boxing':
+  'B1_-_stand_to_walk_stageii':
     description: fight
     difficulty: 4
     trim_beg: -1
