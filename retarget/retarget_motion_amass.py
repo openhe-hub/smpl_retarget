@@ -485,9 +485,9 @@ class H1mRetargetKeypoint:
 if __name__ == '__main__':
     # NOTE: this is the input data path
     # NOTE: here we select one example from AMASS/CMU dataset (in SMPLX form) as input
-    dataset_folder = "../assets/amass_accad/"
+    dataset_folder = "../assets/amass_accad_lite/"
     motions_folders = [f for f in os.listdir(dataset_folder) if os.path.isdir(os.path.join(dataset_folder, f))]
-    output_folder = "../assets/amass_accad_output/"
+    output_folder = "../assets/amass_accad_lite_output/"
     
     if not os.path.exists(output_folder):
         os.mkdir(output_folder)
@@ -524,11 +524,25 @@ if __name__ == '__main__':
             )
                     
             joint_pos, root_trans, root_ori = retarget.retarget()
-            root_trans = torch.from_numpy(output['root_translation'])
+            # root_trans = torch.from_numpy(output['root_translation'])
 
-            root_pos = root_trans.cpu().detach().numpy()
-            root_rot = R.from_rotvec(root_ori.cpu().detach().numpy()).as_quat()
-            dof_pos = joint_pos.cpu().detach().numpy()
+            # root_pos = root_trans.cpu().detach().numpy()
+            # root_rot = R.from_rotvec(root_ori.cpu().detach().numpy()).as_quat()
+            # dof_pos = joint_pos.cpu().detach().numpy()
+            
+            (
+                root_pos,
+                root_rot,
+                dof_pos,
+                root_vel,
+                root_ang_vel,
+                dof_vel,
+                keypoint_trans
+            ) = retarget.forward_trackable(
+                joint_pos=joint_pos.detach(),
+                root_trans=root_trans.detach(),
+                root_ori=root_ori.detach()
+            )
 
             output = {
                 'file_name': file_name,
@@ -538,7 +552,21 @@ if __name__ == '__main__':
                 'root_pos': root_pos,
                 'root_rot': root_rot,
                 'dof_pos': dof_pos,
+                'root_vel': root_vel,
+                'root_ang_vel': root_ang_vel,
+                'dof_vel': dof_vel,
+                'keypoint_trans': keypoint_trans
             }
+
+            # output = {
+            #     'file_name': file_name,
+            #     'fps': retarget.data.frame_rate,
+            #     'time_length': retarget.data.time_length,
+            #     'num_frames': retarget.data.num_frames,
+            #     'root_pos': root_pos,
+            #     'root_rot': root_rot,
+            #     'dof_pos': dof_pos,
+            # }
 
             output_filename = retarget.file_name
             output_path = os.path.join(output_folder, motions_folder, output_filename + '.npy')

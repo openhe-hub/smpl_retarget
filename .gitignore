@@ -7,7 +7,6 @@ smplx/
 visualizations/
 retarget_input/
 retarget_output/
-test/
 MUJOCO_LOG.txt
 
 # Byte-compiled / optimized / DLL files
